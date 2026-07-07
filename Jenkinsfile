@@ -2,8 +2,11 @@ pipeline {
     agent any
 
     environment {
-        EC2_IP = '18.141.234.116'
-        EC2_USER = 'ec2-user'
+        AWS_ACCOUNT_ID = '656732270450'
+        AWS_REGION     = 'ap-southeast-1'
+        ECR_REPO       = 'jenkins-tutorial-app'
+        IMAGE_TAG      = "${BUILD_NUMBER}"
+        ECR_URL        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
     }
 
     stages {
@@ -14,25 +17,41 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build Docker Image') {
             steps {
-                echo 'Building the project...'
+                sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
             }
         }
 
-        stage('Deploy to EC2') {
-    steps {
-        sshagent(credentials: ['ec2-ssh-key']) {
-            sh """
-                scp -o StrictHostKeyChecking=no index.html ${EC2_USER}@${EC2_IP}:/tmp/index.html
-                ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
-                    sudo mv /tmp/index.html /usr/share/nginx/html/index.html
-                    echo "Deployed successfully!"
-                '
-            """
+        stage('Push to ECR') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-ecr-credentials'
+                ]]) {
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_URL}
+                        docker tag ${ECR_REPO}:${IMAGE_TAG} ${ECR_URL}:${IMAGE_TAG}
+                        docker tag ${ECR_REPO}:${IMAGE_TAG} ${ECR_URL}:latest
+                        docker push ${ECR_URL}:${IMAGE_TAG}
+                        docker push ${ECR_URL}:latest
+                    """
+                }
+            }
         }
-    }
-}
+
+        stage('Deploy to ECS') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-ecr-credentials'
+                ]]) {
+                    sh """
+                        aws ecs update-service --cluster jenkins-tutorial-cluster --service jenkins-tutorial-service --force-new-deployment --region ${AWS_REGION}
+                    """
+                }
+            }
+        }
     }
 
     post {
