@@ -21,16 +21,18 @@ pipeline {
         }
 
         stage('Deploy to EC2') {
-            steps {
-                sshagent(credentials: ['ec2-ssh-key']) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
-                            echo "Deploy successful! Connected to \$(hostname)"
-                        '
-                    """
-                }
-            }
+    steps {
+        sshagent(credentials: ['ec2-ssh-key']) {
+            sh """
+                scp -o StrictHostKeyChecking=no index.html ${EC2_USER}@${EC2_IP}:/tmp/index.html
+                ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
+                    sudo mv /tmp/index.html /usr/share/nginx/html/index.html
+                    echo "Deployed successfully!"
+                '
+            """
         }
+    }
+}
     }
 
     post {
