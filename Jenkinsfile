@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        EC2_IP = '18.141.234.116'
+        EC2_USER = 'ec2-user'
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -15,15 +20,15 @@ pipeline {
             }
         }
 
-        stage('Test') {
+        stage('Deploy to EC2') {
             steps {
-                echo 'Running tests...'
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                echo 'Deploying application...'
+                sshagent(credentials: ['ec2-ssh-key']) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
+                            echo "Deploy successful! Connected to \$(hostname)"
+                        '
+                    """
+                }
             }
         }
     }
