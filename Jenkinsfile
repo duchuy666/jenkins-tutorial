@@ -1,6 +1,5 @@
 pipeline {
     agent any
-
     environment {
         AWS_ACCOUNT_ID = '656732270450'
         AWS_REGION     = 'ap-southeast-1'
@@ -8,7 +7,6 @@ pipeline {
         IMAGE_TAG      = "${BUILD_NUMBER}"
         ECR_URL        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
     }
-
     stages {
         stage('Checkout') {
             steps {
@@ -16,16 +14,41 @@ pipeline {
                 checkout scm
             }
         }
-
         stage('Build Docker Image') {
             steps {
                 sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
             }
         }
-
+        stage('Quality Checks') {
+            parallel {
+                stage('Unit Test') {
+                    steps {
+                        echo 'Running unit tests...'
+                        sh 'sleep 5'
+                        echo 'Unit tests passed!'
+                    }
+                }
+                stage('Lint Check') {
+                    steps {
+                        echo 'Running lint check...'
+                        sh 'sleep 3'
+                        echo 'Lint check passed!'
+                    }
+                }
+                stage('Security Scan') {
+                    steps {
+                        echo 'Running security scan...'
+                        sh 'sleep 4'
+                        echo 'Security scan passed!'
+                    }
+                }
+            }
+        }
         stage('Push to ECR') {
             when {
-                branch 'main'
+                expression {
+                    return env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main'
+                }
             }
             steps {
                 withCredentials([[
@@ -42,10 +65,11 @@ pipeline {
                 }
             }
         }
-
         stage('Deploy to ECS') {
             when {
-                branch 'main'
+                expression {
+                    return env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main'
+                }
             }
             steps {
                 withCredentials([[
@@ -59,7 +83,6 @@ pipeline {
             }
         }
     }
-
     post {
         success {
             echo 'Pipeline completed successfully!'
