@@ -41,9 +41,12 @@ pipeline {
         }
 
         stage('Deploy to ECS') {
+            when {
+                branch 'main'
+            }
             steps {
                 withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
+                    $class : 'AmazonWebServiceCredentialsBinding',
                     credentialsId: 'aws-ecr-credentials'
                 ]]) {
                     sh """
