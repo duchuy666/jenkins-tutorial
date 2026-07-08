@@ -24,7 +24,7 @@ pipeline {
                 stage('Unit Test') {
                     steps {
                         echo 'Running unit tests...'
-                        sh 'python3 -m pytest test_app.py -v'
+                        sh 'python3 -m pytest test_app.py -v --junitxml=test-results.xml'
                     }
                 }
                 stage('Lint Check') {
