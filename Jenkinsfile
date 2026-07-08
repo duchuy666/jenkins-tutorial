@@ -24,8 +24,7 @@ pipeline {
                 stage('Unit Test') {
                     steps {
                         echo 'Running unit tests...'
-                        sh 'sleep 5'
-                        echo 'Unit tests passed!'
+                        sh 'python3 -m pytest test_app.py -v'
                     }
                 }
                 stage('Lint Check') {
