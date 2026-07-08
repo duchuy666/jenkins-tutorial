@@ -24,6 +24,9 @@ pipeline {
         }
 
         stage('Push to ECR') {
+            when {
+                branch 'main'
+            }
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
@@ -42,13 +45,11 @@ pipeline {
 
         stage('Deploy to ECS') {
             when {
-                expression {
-                    return env.GIT_BRANCH == "origin/main" || env.GIT_BRANCH == 'main'
-                }
+                branch 'main'
             }
             steps {
                 withCredentials([[
-                    $class : 'AmazonWebServiceCredentialsBinding',
+                    $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'aws-ecr-credentials'
                 ]]) {
                     sh """
