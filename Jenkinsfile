@@ -65,23 +65,50 @@ pipeline {
             }
         }
         stage('Deploy to ECS') {
-            when {
-                expression {
-                    return env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main'
-                }
-            }
-            steps {
-                withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-ecr-credentials'
-                ]]) {
+    when {
+        expression {
+            return env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main'
+        }
+    }
+    steps {
+        withCredentials([[
+            $class: 'AmazonWebServicesCredentialsBinding',
+            credentialsId: 'aws-ecr-credentials'
+        ]]) {
+            script {
+                def currentTaskDef = sh(
+                    script: """
+                        aws ecs describe-services --cluster jenkins-tutorial-cluster --services jenkins-tutorial-service --region ${AWS_REGION} --query 'services[0].taskDefinition' --output text
+                    """,
+                    returnStdout: true
+                ).trim()
+                echo "Current Task Definition (backup for rollback): ${currentTaskDef}"
+
+                sh """
+                    aws ecs update-service --cluster jenkins-tutorial-cluster --service jenkins-tutorial-service --force-new-deployment --region ${AWS_REGION}
+                """
+
+                echo 'Waiting for service to stabilize...'
+                def deploySuccess = sh(
+                    script: """
+                        aws ecs wait services-stable --cluster jenkins-tutorial-cluster --services jenkins-tutorial-service --region ${AWS_REGION}
+                    """,
+                    returnStatus: true
+                )
+
+                if (deploySuccess != 0) {
+                    echo "Deploy failed! Rolling back to: ${currentTaskDef}"
                     sh """
-                        aws ecs update-service --cluster jenkins-tutorial-cluster --service jenkins-tutorial-service --force-new-deployment --region ${AWS_REGION}
+                        aws ecs update-service --cluster jenkins-tutorial-cluster --service jenkins-tutorial-service --task-definition ${currentTaskDef} --force-new-deployment --region ${AWS_REGION}
                     """
+                    error("Deployment failed and was rolled back to previous version.")
+                } else {
+                    echo "Deploy successful!"
                 }
             }
         }
     }
+}
     post {
         always {
             junit 'test-results.xml'
