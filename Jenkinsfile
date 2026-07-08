@@ -42,7 +42,9 @@ pipeline {
 
         stage('Deploy to ECS') {
             when {
-                branch 'main'
+                expression {
+                    return env.GIT_BRANCH == "origin/main" || env.GIT_BRANCH == 'main'
+                }
             }
             steps {
                 withCredentials([[
